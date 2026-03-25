@@ -82,7 +82,7 @@ def run_country(
                         description=f"[cyan]{country}[/cyan] — {name[:40]}")
 
         content  = scrape_text(website)
-        analysis = analyse_company(client, name, website, content, geo=geo)
+        analysis = analyse_company(client, name, website, content, geo=geo, country=country)
         if not analysis:
             continue
         processed += 1
@@ -90,9 +90,28 @@ def run_country(
         if analysis["fit_score"] < min_score:
             continue
 
+        # HQ country correction
+        hq_country = analysis.pop("hq_country", country)
+        if hq_country and hq_country != country:
+            if hq_country not in COUNTRY_REGION:
+                console.print(f"  [yellow]Skipping {name}: HQ in {hq_country} (not in target countries)[/yellow]")
+                continue
+            console.print(f"  [cyan]HQ correction: {name} moved from {country} to {hq_country}[/cyan]")
+            actual_country    = hq_country
+            actual_sub_region = COUNTRY_REGION[hq_country]
+            actual_geo        = COUNTRY_GEO[hq_country]
+            _geo_to_gr        = {"NAMERICA": "North America", "APAC": "APAC", "EMEA": "EMEA"}
+            actual_global_region = _geo_to_gr.get(actual_geo, actual_geo)
+        else:
+            actual_country       = country
+            actual_sub_region    = sub_region
+            actual_geo           = geo
+            actual_global_region = global_region
+        analysis["discovery_country"] = country
+
         try:
             with db_conn() as conn:
-                upsert_lead(conn, name, website, country, global_region, sub_region, geo, analysis, website)
+                upsert_lead(conn, name, website, actual_country, actual_global_region, actual_sub_region, actual_geo, analysis, website)
             stored += 1
         except Exception as e:
             console.print(f"  [red]Storage error for {name}: {e}[/red]")

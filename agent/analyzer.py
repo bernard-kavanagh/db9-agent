@@ -93,7 +93,8 @@ Return ONLY valid JSON (no markdown, no explanation):
   "industry": "Industry category (e.g. 'AI Infrastructure', 'Healthcare AI', 'Legal AI', 'HR Tech', 'Fintech', 'Enterprise SaaS', 'Developer Tools', 'Agent Orchestration', etc.)",
   "company_size": "Estimated headcount band: '1-10', '11-50', '51-200', '201-500', '501-1000', or '1000+'. Use 'Unknown' if unclear.",
   "icp_contacts": ["Pick 3-5 from these GTM-aligned titles based on company profile — CTO, VP Engineering, Head of Data & AI, AI/ML Platform Lead, Chief Compliance Officer, Head of Backend Engineering, VP Product, Principal Engineer, Head of AI Infrastructure, Data Engineer Lead, DPO"],
-  "outreach_recommendation": "1-2 sentence actionable outreach angle. Lead with the specific db9 value prop — name the database they should migrate from, the compliance framework they're targeting, or the agent architecture pattern where serverless Postgres fits. Be concrete."
+  "outreach_recommendation": "1-2 sentence actionable outreach angle. Lead with the specific db9 value prop — name the database they should migrate from, the compliance framework they're targeting, or the agent architecture pattern where serverless Postgres fits. Be concrete.",
+  "hq_country": "The company headquarters country based on website content, about page, contact info, or any other signals. If the website clearly shows HQ is in a different country than the discovery country ({country}), return the CORRECT country. If unclear, return the discovery country."
 }}
 
 Scoring guide — award the highest applicable score:
@@ -137,6 +138,7 @@ def analyse_company(
     website: str,
     content: str | None,
     geo: str = "EMEA",
+    country: str = "",
 ) -> dict | None:
     """
     Returns structured analysis dict or None on failure.
@@ -151,6 +153,7 @@ def analyse_company(
         geo=geo.upper(),
         compliance_context=compliance_context,
         content=content[:5000],
+        country=country or "Unknown",
     )
 
     try:
@@ -170,7 +173,7 @@ def analyse_company(
         result = json.loads(raw)
 
         # Validate required fields
-        required = {"description", "db9_pain", "db9_use_case", "fit_score", "industry", "company_size", "icp_contacts", "outreach_recommendation"}
+        required = {"description", "db9_pain", "db9_use_case", "fit_score", "industry", "company_size", "icp_contacts", "outreach_recommendation", "hq_country"}
         if not required.issubset(result.keys()):
             return None
 

@@ -52,6 +52,8 @@ CREATE INDEX IF NOT EXISTS idx_contacts_lead        ON contacts(lead_id);
 -- ALTER TABLE leads ADD COLUMN company_size  VARCHAR(50)  AFTER industry;
 -- ALTER TABLE leads ADD COLUMN embedding              TEXT         AFTER status;
 -- ALTER TABLE leads ADD COLUMN outreach_recommendation TEXT         AFTER embedding;
+-- ALTER TABLE leads ADD COLUMN hq_country        VARCHAR(100) AFTER outreach_recommendation;
+-- ALTER TABLE leads ADD COLUMN discovery_country VARCHAR(100) AFTER hq_country;
 --
 -- UPDATE leads SET global_region = 'EMEA' WHERE global_region IS NULL;
 --
