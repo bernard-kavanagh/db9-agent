@@ -68,6 +68,15 @@ Companies building actual agent pipelines — not just AI products, but systems 
 These are the most urgent db9 leads — they will hit the Memory Wall within 6-12 months of scaling,
 facing fragmented Postgres + vector DB + S3 stacks paying the "Agentic Tax" in engineering overhead.
 
+db9's economic value — the Token Tax argument:
+AI agents pay a 'Token Tax' every time they re-read their own history. A 10-step task doesn't cost
+10x — it costs 55x because each step re-sends all previous context. db9 eliminates this by giving
+agents a serverless checkpoint layer:
+- Checkpoint state: agents write progress to db9 instead of carrying it in the context window. Per-request token costs drop 80-90% for long-running tasks.
+- Crash-proof resumption: if an agent fails at step 9 of 10, it resumes from the last checkpoint instead of restarting. Zero 'failure tax.'
+- Ephemeral databases: spin up a task-scoped database in milliseconds, run the agent, destroy on completion. Enterprise clients get stateful performance with zero data-at-rest risk.
+- The economics: LLM tokens cost ~$3-15/M. Postgres storage costs fractions of a penny. db9 shifts work from the expensive brain to the cheap filing cabinet.
+
 Your job: analyse a company, identify which ICP profile(s) apply, and score fit precisely."""
 
 ANALYSIS_PROMPT = """Analyse this company as a potential db9.ai customer across three ICP lenses.
@@ -87,13 +96,13 @@ Return ONLY valid JSON (no markdown, no explanation):
   "description": "2-3 sentence description of what the company does and their main product",
   "icp_profile": "Which profile(s) apply — one or more of: 'Postgres Displacement', 'AI Compliance', 'Agentic Workflow Builder', 'Episodic Memory Builder', 'MCP-Native'. Comma-separate if multiple apply.",
   "db_stack": "Inferred or detected current database technology (e.g. 'Postgres + Pinecone', 'MySQL + pgvector', 'Supabase', 'Neon', 'Aurora', 'DynamoDB', 'self-hosted Postgres', 'Unknown'). Look for clues in job postings, tech stack mentions, integrations.",
-  "db9_pain": "Specific pain point this company has that db9 solves — be concrete and reference the correct ICP profile. Examples: Displacement: 'Self-hosting Postgres + Pinecone for their AI agents — managing two systems with ETL overhead; db9 replaces both with serverless pgvector'; Compliance: 'Builds healthcare AI under HIPAA — needs ACID audit trail for every agent decision and regional deployment for PHI data residency'; Agentic: 'Building a multi-agent research platform where each agent needs persistent memory; current Postgres + Pinecone split means stale context and hallucinations at scale'; Episodic: 'Agents need to write decisions and outcomes back as vector embeddings — requires unified store for structured state and vector memory in one Postgres-compatible engine'",
+  "db9_pain": "Specific pain point this company has that db9 solves — be concrete and reference the correct ICP profile. Examples: Displacement: 'Self-hosting Postgres + Pinecone for their AI agents — managing two systems with ETL overhead; db9 replaces both with serverless pgvector'; Compliance: 'Builds healthcare AI under HIPAA — needs ACID audit trail for every agent decision and regional deployment for PHI data residency'; Agentic: 'Building a multi-agent research platform where each agent needs persistent memory; current Postgres + Pinecone split means stale context and hallucinations at scale'; Episodic: 'Agents need to write decisions and outcomes back as vector embeddings — requires unified store for structured state and vector memory in one Postgres-compatible engine'. Also assess the Token Tax exposure: does this company run long-running or multi-step agent tasks where context windows grow linearly? Do their agents connect to multiple tools (Slack, Jira, etc) requiring cross-tool context? If so, quantify the Token Tax angle — e.g. a 20-step research agent re-reads its full history 190 times without checkpointing.",
   "db9_use_case": "One concrete use case: how would they specifically use db9? Reference their actual product. E.g. 'Replace their self-hosted Postgres + Pinecone stack with db9 serverless — unified pgvector cluster stores agent session memory, product embeddings, and relational data in one engine; database branching gives their DBA agent a safe sandbox for schema changes before prod merge; HTTP-from-SQL lets agents trigger external webhooks directly from query results'",
   "fit_score": <integer 1-10, where 10 = perfect ICP match>,
   "industry": "Industry category (e.g. 'AI Infrastructure', 'Healthcare AI', 'Legal AI', 'HR Tech', 'Fintech', 'Enterprise SaaS', 'Developer Tools', 'Agent Orchestration', etc.)",
   "company_size": "Estimated headcount band: '1-10', '11-50', '51-200', '201-500', '501-1000', or '1000+'. Use 'Unknown' if unclear.",
   "icp_contacts": ["Pick 3-5 from these GTM-aligned titles based on company profile — CTO, VP Engineering, Head of Data & AI, AI/ML Platform Lead, Chief Compliance Officer, Head of Backend Engineering, VP Product, Principal Engineer, Head of AI Infrastructure, Data Engineer Lead, DPO"],
-  "outreach_recommendation": "1-2 sentence actionable outreach angle. Lead with the specific db9 value prop — name the database they should migrate from, the compliance framework they're targeting, or the agent architecture pattern where serverless Postgres fits. Be concrete.",
+  "outreach_recommendation": "1-2 sentence actionable outreach angle. Lead with the specific db9 value prop — name the database they should migrate from, the compliance framework they're targeting, or the agent architecture pattern where serverless Postgres fits. Be concrete. When relevant, include the Token Tax angle — quantify the potential savings. E.g. if the company runs 20-step agent workflows, note that checkpointing to db9 could reduce per-task token costs by 80-90%.",
   "hq_country": "The company headquarters country based on website content, about page, contact info, or any other signals. If the website clearly shows HQ is in a different country than the discovery country ({country}), return the CORRECT country. If unclear, return the discovery country."
 }}
 
@@ -102,12 +111,14 @@ Scoring guide — award the highest applicable score:
 9-10 PERFECT FIT (any one of):
   • Episodic Memory Builder: agents write decisions + outcomes back as vector embeddings in Postgres
   • Agentic Workflow Builder actively hitting the Memory Wall (Postgres + separate vector DB, multi-agent platform, autonomous agent with persistent memory)
+  • Multi-step agent orchestration where context windows grow quadratically — massive Token Tax exposure that db9 checkpointing directly solves
   • AI Compliance HIGH-RISK sector (healthcare/finance/HR/legal AI) with agentic or autonomous decision-making AND scale
   • Postgres Displacement: self-hosting Postgres + Pinecone/Weaviate or on Aurora/RDS AND already managing a second vector system — immediate serverless migration candidate
   • MCP-Native: building with Claude/LangChain tool-use and needs Postgres as the unified data substrate
 
 7-8 STRONG FIT (any one of):
   • Building AI agents or copilots but not yet at Memory Wall scale — will hit it within 12 months
+  • AI features with growing context requirements (long conversations, document processing, multi-tool workflows) — moderate Token Tax exposure that db9 checkpointing can address
   • AI compliance exposure in a regulated sector (healthcare, finance, legal) even without explicit agent architecture
   • Postgres/MySQL shop with clear AI roadmap and growing data complexity
   • Multi-tenant SaaS platform needing per-tenant database isolation at scale (branching story)
