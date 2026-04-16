@@ -1,34 +1,39 @@
 """
 Embedding generation and hybrid semantic search for leads.
 
-Uses sentence-transformers (all-MiniLM-L6-v2, 384 dims) — runs locally, no API key needed.
-TiDB stores the vectors natively and searches with VEC_COSINE_DISTANCE + HNSW index.
-
-Hybrid search = keyword (LIKE) OR vector similarity, ranked by combined score.
+sentence-transformers is OPTIONAL: if not installed (Vercel), VECTOR_SEARCH_AVAILABLE=False
+and hybrid_search returns [] (API endpoint falls back to keyword-only results).
+Run ~/precompute_embeddings.py once locally to pre-bake case study embeddings.
 """
 import json
 from typing import Optional
 
 _model = None
 
+try:
+    from sentence_transformers import SentenceTransformer as _ST
+    VECTOR_SEARCH_AVAILABLE = True
+except ImportError:
+    _ST = None
+    VECTOR_SEARCH_AVAILABLE = False
+
 
 def _get_model():
     global _model
+    if not VECTOR_SEARCH_AVAILABLE:
+        raise RuntimeError("sentence-transformers not installed")
     if _model is None:
-        from sentence_transformers import SentenceTransformer
-        _model = SentenceTransformer("all-MiniLM-L6-v2")
+        _model = _ST("all-MiniLM-L6-v2")
     return _model
 
 
 def embed(text: str) -> list[float]:
-    """Return a 384-dim embedding for the given text."""
     model = _get_model()
     vec = model.encode(text, normalize_embeddings=True)
     return vec.tolist()
 
 
 def lead_text(lead: dict) -> str:
-    """Concatenate the fields we embed for a lead."""
     parts = [
         lead.get("db9_pain") or "",
         lead.get("db9_use_case") or "",
@@ -46,10 +51,6 @@ def embed_lead(lead: dict) -> list[float] | None:
 
 
 def backfill_embeddings(conn) -> tuple[int, int]:
-    """
-    Generate and store embeddings for all leads that don't have one yet.
-    Returns (updated, skipped).
-    """
     with conn.cursor() as cur:
         cur.execute("""
             SELECT id, db9_pain, db9_use_case, description, industry
@@ -87,13 +88,11 @@ def hybrid_search(
     country: str | None = None,
     region: str | None = None,
 ) -> list[dict]:
-    """
-    Hybrid search: combines vector cosine similarity with keyword matching.
-    Returns leads ranked by relevance.
-    """
+    if not VECTOR_SEARCH_AVAILABLE:
+        return []
+
     query_vec = embed(query)
     vec_str = "[" + ",".join(f"{v:.6f}" for v in query_vec) + "]"
-
     keyword = f"%{query}%"
 
     conditions = ["l.fit_score >= %s"]
@@ -130,7 +129,7 @@ def hybrid_search(
             END AS keyword_hit
         FROM leads l
         LEFT JOIN contacts c ON c.lead_id = l.id
-        WHERE {where}
+        WHERE {{where}}
           AND l.embedding IS NOT NULL
         GROUP BY l.id
         ORDER BY
@@ -138,7 +137,7 @@ def hybrid_search(
             + (CASE WHEN l.db9_pain LIKE %s OR l.db9_use_case LIKE %s THEN 0.3 ELSE 0 END)
             DESC
         LIMIT %s
-    """
+    """.format(where=where)
 
     all_params = [vec_str, keyword, keyword, keyword] + params + [vec_str, keyword, keyword, top_k]
 
@@ -158,7 +157,7 @@ def hybrid_search(
         roles = [r for r in (roles or []) if r is not None]
         links = links or []
         row["contacts"] = [
-            {"role": r, "linkedin_url": links[i] if i < len(links) else None}
+            dict(role=r, linkedin_url=links[i] if i < len(links) else None)
             for i, r in enumerate(roles)
         ]
         result.append(row)
